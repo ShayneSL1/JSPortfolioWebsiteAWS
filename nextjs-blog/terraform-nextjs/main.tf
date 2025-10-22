@@ -2,8 +2,9 @@ provider "aws" {
     region = "us-east-2"
 }
 
-resource "aws_s3_bucket" "website" {
-  bucket = "your-unique-bucket-name"
+#S3 Bucket
+resource "aws_s3_bucket" "nextjs_bucket" {
+  bucket = "nextjs-portfolio-bucket-sl"
   
   website {
     index_document = "index.html"
@@ -16,17 +17,45 @@ resource "aws_s3_bucket" "website" {
   }
 }
 
-resource "aws_s3_bucket_policy" "website_policy" {
-  bucket = aws_s3_bucket.website.id
+#Ownership Control
+resource "aws_s3_bucket_ownership_controls" "nextjs_bucket_ownership_controls" {
+  bucket = aws_s3_bucket.nextjs_bucket.id
+  rule {
+    object_ownership = "BucketOwnerPreferred"
+  }
+}
+
+#Allow Public Access
+resource "aws_s3_account_public_access_block" "nextjs_bucket_public_access_block" {
+  block_public_acls = false
+  block_public_policy = false
+  ignore_public_acls = false
+  restrict_public_buckets = false
+}
+
+#Bucket ACL
+resource "aws_s3_bucket_acl" "nextjs_bucket_acl" {
+  bucket = aws_s3_bucket.nextjs_bucket.id
+  acl = "public-read"
+  depends_on = [ 
+    aws_s3_bucket_ownership_controls.nextjs_bucket_ownership_controls,
+    aws_s3_account_public_access_block.nextjs_bucket_public_access_block
+   ]
+}
+
+#Bucket Policy
+resource "aws_s3_bucket_policy" "nextjs_bucket_policy" {
+  bucket = aws_s3_bucket.nextjs_bucket.id
   
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [
       {
+        Sid = "PublicReadGetObject"
         Effect = "Allow"
         Principal = "*"
         Action = "s3:GetObject"
-        Resource = "${aws_s3_bucket.website.arn}/*"
+        Resource = "${aws_s3_bucket.nextjs_bucket.arn}/*"
       }
     ]
   })
@@ -34,7 +63,7 @@ resource "aws_s3_bucket_policy" "website_policy" {
 
 resource "aws_cloudfront_distribution" "website_distribution" {
   origin {
-    domain_name = aws_s3_bucket.website.website_endpoint
+    domain_name = aws_s3_bucket.nextjs_bucket.website_endpoint
     origin_id   = "S3-Website"
     
     custom_origin_config {
